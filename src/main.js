@@ -1,9 +1,12 @@
 const { app, BrowserWindow } = require("electron");
 const { getVideoDurationInSeconds } = require('get-video-duration');
 const fs = require("fs");
+const { spawn } = require("child_process");
+const { exec } = require("child_process");
 var express = require("express"),
   path = require("path"),
   service = express();
+
 
 //***************************************************************//
 //***************************************************************//
@@ -11,6 +14,12 @@ var express = require("express"),
 //***************************************************************//
 //***************************************************************//
 let mainWindow;
+
+let bulbIP;
+const pythonProcess = spawn('python', ["src/utils/search_devices.py"]);
+pythonProcess.stdout.on('data', (data) => {
+  bulbIP = data.toString();
+});
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -25,9 +34,11 @@ function createWindow() {
   //mainWindow.webContents.openDevTools();
 }
 
+
 app.whenReady().then(() => {
   createWindow();
 });
+
 // .then(() => {
 //   mainWindow.webContents.on("did-finish-load", () => {
 //     fs.readdir(path.join(__dirname, "./media"), function (err, dir) {
@@ -90,6 +101,11 @@ service.post("/upload/:filename", function (req, res) {
       MyPlayer.add(new Media(filename, 5000));
     res.end(JSON.stringify(MyPlayer));
   });
+});
+
+service.post("/startSlide", function (req, res) {
+  mainWindow.webContents.send("file", req.body.filename);
+  res.end(JSON.stringify(MyPlayer));
 });
 
 service.post("/brightness", function (req, res) {
@@ -190,7 +206,14 @@ function Media(myFileName, myLength) {
     console.log(this.id + "  " + this.fileName + " " + this.duration);
   };
   this.play = function (mainWindow) {
-    mainWindow.webContents.send("file", this.fileName);
+    console.log("media.play");
+    const ls = spawn("python", ["src/utils/controller.py", bulbIP, 'fire', this.fileName]);
+    ls.stdout.on("data", data => {
+      console.log(`stdout: ${data}`);
+    });
+    ls.on('error', (error) => {
+      console.log(`error: ${error.message}`);
+    });
   };
 }
 
@@ -207,10 +230,11 @@ function Player() {
     this.count++;
   };
   this.start = function (mainWindow, from) {
+    console.log("ilk start");
     if (!this.play) return 0;
     this.playingIndex = from;
     console.log("index: " + this.playingIndex + " Count: " + this.count + " Loop: " + this.loop + " Play: " + this.play);
-    if (this.playingIndex < this.count) this.playList[this.playingIndex].play(mainWindow);
+    if (this.playingIndex < this.count) this.playList[this.playingIndex].play(mainWindow); 
     if (this.loop && this.playingIndex == this.count - 1) timeOut = setTimeout(() => this.start(mainWindow, 0), this.playList[this.playingIndex].duration);
     else if (!this.loop && this.playingIndex == this.count - 1) this.play = false;
     else if (this.play && this.playingIndex < this.count - 1) timeOut = setTimeout(() => this.start(mainWindow, ++this.playingIndex),this.playList[this.playingIndex].duration);

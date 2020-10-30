@@ -15,6 +15,7 @@ var screen = { height: 360, width: 192}
 
 // ************** Media ****************
 function insertSlide(data) {
+  console.log("insert slide");
   document.getElementById('mySlide').innerHTML = '';
   var extension = getFileExtension(data);
   if (extension == "mp4") {
@@ -52,6 +53,7 @@ function getFileExtension(filename) {
 // ***********************************
 
 ipcRenderer.on("file", function (event, data) {
+  console.log("renderer file : ", data);
   insertSlide(data);
 });
 
